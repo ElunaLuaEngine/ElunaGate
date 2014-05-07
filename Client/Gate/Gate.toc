@@ -1,0 +1,14 @@
+## Interface: 30200
+## Title: ElunaGate
+## Notes: Framework for Server Side Addons! Converted to Eluna.
+## Version: 1
+## SavedVariables: Gate_SF
+## SavedVariablesPerCharacter: Gate_OpenFrames
+## Author: Foereaper, Kenuvis
+
+Minimap.xml
+Gate.lua
+Gate_Textures.lua
+Gate_Objects.lua
+Gate_Minimap.lua
+Gate_SlashActions.lua
