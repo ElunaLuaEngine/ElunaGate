@@ -641,6 +641,12 @@ local function gEditBox(Object)
 	if Object.MultiLines then
 		EditBox:SetMultiLine(true) 
 	end
+    
+    if not Object.AutoFocus then
+        EditBox:SetAutoFocus(false)
+        EditBox:SetScript("OnEnterPressed", function() EditBox:ClearFocus() end)
+        EditBox:SetScript("OnEscapePressed", function() EditBox:ClearFocus() end)
+    end
 	
 	return EditBox
 end
@@ -1161,6 +1167,7 @@ Gate_Reg_Comm("eb", gEditBox)
 	Gate_Reg_ShortCut("eb", "ml", "MultiLines")
 	Gate_Reg_ShortCut("eb", "min", "Min")
 	Gate_Reg_ShortCut("eb", "max", "Max")
+	Gate_Reg_ShortCut("eb", "af", "AutoFocus")
 	Gate_Reg_Object("eb", {Type = "EditBox", Width = 100, Height = 20, Template = "InputBoxTemplate"})
 Gate_Reg_Comm("sb", gStatusBar)
 	Gate_Reg_ShortCut("sb", "cd", "Countdown")

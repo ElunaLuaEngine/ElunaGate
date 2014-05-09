@@ -76,6 +76,7 @@ Gate.shortKeys = {
 	["MultiLine"] = "ml",
 	["MinValue"] = "min",
 	["MaxValue"] = "max",
+	["AutoFocus"] = "af",
 	-- Only for Check/Radiobuttons
 	["Checked"] = "ch",
 	-- Only for Yes/No-Frame
