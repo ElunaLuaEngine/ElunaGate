@@ -10,16 +10,21 @@
 ----------------------------------------------------------------------------------------------------------------------
 Gate = {}
 Gate.ScriptingInterface = {}
-Gate.Prefix = "ElunaGate"
-Gate.StreamStart = "\129" --"�"
-Gate.BlockStart = "\130" --"#"
-Gate.BlockIdent = "\131" --"!"
-Gate.StreamBlock = "\132" --"~"
-Gate.StreamBlockEnd = "\133" --"!"
-Gate.True = "\134" --"%"
-Gate.False = "\135" --"&"
-Gate.Debug = false
-Gate.Version = "8"
+Gate.Debug          = false
+-- These definitions should be identical to the client definitions.
+Gate.Prefix         = "ElunaGate"
+Gate.Version        = "9"
+Gate.StreamStart    = "\1" -- "☺"
+Gate.BlockStart     = "\2" -- "☻"
+Gate.BlockIdent     = "\3" -- "♥"
+Gate.StreamBlock    = "\4" -- "♦"
+Gate.StreamBlockEnd = "\5" -- "♣"
+Gate.True           = "\6" -- "♠"
+Gate.False          = "\7" -- "•"
+Gate.Prefix = Gate.Prefix:sub(1, 16) -- shorten prefix to max allowed
+-- Length is 255 - tab - prefix - server/client specifier
+Gate.AddonMsgLen = 255 - 1 - Gate.Prefix:len() -1
+Gate.StreamMsgLen = Gate.AddonMsgLen - Gate.StreamBlock:len() - Gate.StreamBlockEnd:len()
 
 print("[ElunaGate]: Loaded Client Side Framework!")
 
@@ -140,14 +145,29 @@ function Gate:DecodeStream(Stream) -- New Life Update
 		end
 	end
 end]]
-	
-	
-	
+
+
 function Gate:IncomingStream(Stream)
 	debugprint(Stream, "RealStream:")
+
+	-- If a message is over 255 letters long and the limit reached, it cuts in blocks 
+	-- StreamBlock Stream1
+	-- StreamBlock Stream2
+	-- StreamBlock StreamBlockEnd Stream3  --> Stream1 Stream2 Stream3
+	if string.find(Stream, Gate.StreamBlock) == 1 then
+		if string.find(Stream, Gate.StreamBlockEnd) == 2 then
+			Gate.Stream = Gate.Stream..string.sub(Stream, 3)
+			Gate:IncomingStream(Gate.Stream, Player)
+			Gate.Stream = nil
+		else
+			if not Gate.Stream then Gate.Stream = "" end
+			Gate.Stream = Gate.Stream..string.sub(Stream, 2)
+		end
+		return
+	end
 	
 	-- Stream1 Stream2 Stream3 ...
-	for event, parameter in string.gmatch(Stream, "%"..Gate.StreamStart.."(.[^"..Gate.BlockStart..Gate.StreamStart.."]+)(.[^"..Gate.StreamStart.."]*)") do
+	for event, parameter in string.gmatch(Stream, "%"..Gate.StreamStart.."([^"..Gate.BlockStart..Gate.StreamStart.."]+)([^"..Gate.StreamStart.."]*)") do
 		local LeaveOpen, Name = Gate:IncomingMessage(event, parameter)
 		
 		if LeaveOpen then
@@ -162,7 +182,7 @@ function Gate:IncomingMessage(Event, Text)
 	
 	-- die Textnachricht wird aufgesplittet und zu einem Table gemacht
 	local Message = {}
-	for a in string.gmatch(Text, "%"..Gate.BlockStart.."(.[^"..Gate.BlockStart.."]+)") do
+	for a in string.gmatch(Text, "%"..Gate.BlockStart.."([^"..Gate.BlockStart.."]+)") do
 		table.insert(Message, a)
 	end
 	
@@ -272,21 +292,22 @@ end
 function Gate:SendBuffer()
 	debugprint(Gate.SBuffer, "Buffer:")
 	assert(Gate.SBuffer, Gate.Prefix..": No exsiting buffer to send")
-	
+
 	-- Nachrichten k�nnen max 255 Zeichen lang sein. ein bisschen Tolleranz, das Prefix und Tab und ich schneide bei 245
-	if string.len(Gate.SBuffer) <= 245 then
+
+	if string.len(Gate.SBuffer) <= Gate.AddonMsgLen then
 		debugprint("C"..Gate.Prefix, "Buffer Send with Prefix")
 		SendAddonMessage("C"..Gate.Prefix, Gate.SBuffer, "WHISPER", UnitName("player"))
 	else
-		while string.len(Gate.SBuffer) > 245 do
-			local ToSend = Gate.StreamBlock..string.sub(Gate.SBuffer, 1, 245)
-			Gate.SBuffer = string.sub(Gate.SBuffer, 246)
+		while string.len(Gate.SBuffer) > Gate.StreamMsgLen do
+			local ToSend = Gate.StreamBlock..string.sub(Gate.SBuffer, 1, Gate.StreamMsgLen-1)
+			Gate.SBuffer = string.sub(Gate.SBuffer, Gate.StreamMsgLen)
 			SendAddonMessage("C"..Gate.Prefix, ToSend, "WHISPER", UnitName("player"))
 		end
 		local ToSend = Gate.StreamBlock..Gate.StreamBlockEnd..Gate.SBuffer
 		SendAddonMessage("C"..Gate.Prefix, ToSend, "WHISPER", UnitName("player"))
 	end
-	
+
 	Gate.SBuffer = nil
 	debugprint("Clear", "Buffer")
 end

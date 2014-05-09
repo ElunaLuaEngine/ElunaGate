@@ -2,34 +2,36 @@
 -- For more info on the original code, 
 -- see the text file supplied with this code.
 
-if (MapMgr == nil) then --Serverstart 
-	if GetLuaEngine() == "ElunaEngine" then
-		print("[ElunaGate]: Loaded Server Side Framework!")
-	else
-		print("[Gate]: Unknown and unsupported LuaEngine")
-		return;
-	end
-end
-
 -- Definitions
 
--- These definitions should be identical to the client definitions.
 local Gate = {
-	Prefix = "ElunaGate",
-	Version = "8",
-	StreamStart = "\129", --"§",
-	BlockStart = "\130", --"#",
-	BlockIdent = "\131", --"!",
-	StreamBlock = "\132", --"~",
-	StreamBlockEnd = "\133", --"!",
-	True = "\134", --"%",
-	False = "\135", --"&",
-	
 	-- For New-Life
 	Insert = "\140",
 	EventInsert = "\141",
 	
-	AllowNamelessObjects = false}
+	AllowNamelessObjects = false
+}
+-- These definitions should be identical to the client definitions.
+Gate.Prefix         = "ElunaGate"
+Gate.Version        = "9"
+Gate.StreamStart    = "\1" -- ""
+Gate.BlockStart     = "\2" -- ""
+Gate.BlockIdent     = "\3" -- ""
+Gate.StreamBlock    = "\4" -- ""
+Gate.StreamBlockEnd = "\5" -- ""
+Gate.True           = "\6" -- ""
+Gate.False          = "\7" -- "•"
+Gate.Prefix = Gate.Prefix:sub(1, 16) -- shorten prefix to max allowed
+-- Length is 255 - tab - prefix - server/client specifier
+Gate.AddonMsgLen = 255 - 1 - Gate.Prefix:len() -1
+Gate.StreamMsgLen = Gate.AddonMsgLen - Gate.StreamBlock:len() - Gate.StreamBlockEnd:len()
+
+if GetLuaEngine and GetLuaEngine() == "ElunaEngine" then
+    print("["..Gate.Prefix.."]: Loaded Server Side Framework!")
+else
+    print("["..Gate.Prefix.."]: Unknown and unsupported LuaEngine")
+    return;
+end
 
 -- Shortforms of parameter. Every parameter listed here become a command and only if a parameter is listed here, it would send. Any other parameter stay at the server.
 Gate.shortKeys = {
@@ -710,18 +712,18 @@ function Gate:IncomingStream(Stream, Player)
 	-- StreamBlock StreamBlockEnd Stream3  --> Stream1 Stream2 Stream3
 	if string.find(Stream, Gate.StreamBlock) == 1 then
 		if string.find(Stream, Gate.StreamBlockEnd) == 2 then
-			Gate.Stream[Player] = Gate.Stream[Player]..string.sub(Stream, 3)
-			Gate:IncomingStream(Gate.Stream[Player], Player)
-			Gate.Stream[Player] = nil
+			Gate.Stream[Player:GetGUIDLow()] = Gate.Stream[Player:GetGUIDLow()]..string.sub(Stream, 3)
+			Gate:IncomingStream(Gate.Stream[Player:GetGUIDLow()], Player)
+			Gate.Stream[Player:GetGUIDLow()] = nil
 		else
-			if not Gate.Stream[Player] then Gate.Stream[Player] = "" end
-			Gate.Stream[Player] = Gate.Stream[Player]..string.sub(Stream, 2)
+			if not Gate.Stream[Player:GetGUIDLow()] then Gate.Stream[Player:GetGUIDLow()] = "" end
+			Gate.Stream[Player:GetGUIDLow()] = Gate.Stream[Player:GetGUIDLow()]..string.sub(Stream, 2)
 		end
 		return
 	end
 	
 	-- Easy parse of all little incoming events
-	for a in string.gmatch(Stream, "%"..Gate.StreamStart.."(.[^"..Gate.StreamStart.."]+)") do
+	for a in string.gmatch(Stream, "%"..Gate.StreamStart.."([^"..Gate.StreamStart.."]+)") do
 		Gate:IncomingMessage(a, Player)
 	end
 end
@@ -729,7 +731,7 @@ end
 function Gate:IncomingMessage(Text, Player)
 	-- splitt the message and put it in a table to work better with it
 	local Message = {}
-	for a in string.gmatch(Text, "%"..Gate.BlockStart.."(.[^"..Gate.BlockStart.."]*)") do
+	for a in string.gmatch(Text, "%"..Gate.BlockStart.."([^"..Gate.BlockStart.."]*)") do
 		if a == "+" then a = true elseif a == "-" then a = false end
 		table.insert(Message, a)
 	end
@@ -848,23 +850,31 @@ end
 
 CreateNewGateStream = Gate.CreateNewGateStream
 
-function Gate:Send(ToSend, ...)
-	if not ToSend then return end
+-- Send msg to all players (variable arguments)
+local function SendToPlayers(msg, ...)
+    local a = 1
+    while select(a, ...) do
+        select(a, ...):SendAddonMessage("S"..Gate.Prefix, msg, 7, select(a, ...))
+        a = a + 1
+    end
+end
+
+function Gate:Send(msg, ...)
+	if not msg then return end
 	if not ... then return end
 	
-	-- Add the Prefix for Addonmessages to the Buffer and then go to every Player it should go
-	Prefix = "S"..Gate.Prefix
-	Message = ToSend
-	
-	local a = 1
-	while select(a, ...) do
-		if GetLuaEngine() == "ElunaEngine" then
-			select(a, ...):SendAddonMessage(Prefix, Message, 7, select(a, ...))
-		else
-			error("Unknown LuaEngine")
-		end
-		a = a + 1
-	end
+    -- If message is too big, split in pieces
+    if string.len(msg) <= Gate.AddonMsgLen then
+        SendToPlayers(msg, ...)
+    else
+        while string.len(msg) > Gate.StreamMsgLen do
+            local ToSend = Gate.StreamBlock..string.sub(msg, 1, Gate.StreamMsgLen-1)
+            msg = string.sub(msg, Gate.StreamMsgLen)
+            SendToPlayers(ToSend, ...)
+        end
+        local ToSend = Gate.StreamBlock..Gate.StreamBlockEnd..msg
+        SendToPlayers(ToSend, ...)
+    end
 end
 
 -- Only Objects would send with this function
